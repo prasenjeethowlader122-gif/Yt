@@ -26,11 +26,13 @@ _Populate as you build — short repo map plus pointers to the source-of-truth f
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The frontend is deployed as a Render static site and the API as a separate Render Docker web service.
+- The API image installs `yt-dlp` and `ffmpeg`, which are required for video inspection, downloads, and clipping.
+- The frontend accepts the API service host through `VITE_API_BASE_URL`; an unset value keeps same-origin API behavior for local development.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Clipforge inspects public YouTube and Facebook video links, shows metadata and a preview, downloads full videos, and creates time-range clips.
 
 ## User preferences
 
@@ -38,7 +40,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The frontend Vite config requires both `PORT` and `BASE_PATH` during builds; Render sets these in `render.yaml`.
+- The API must start with `artifacts/api-server` as its working directory because its video-tool paths are relative to that directory.
+- Render deployment is configured through the root `render.yaml` Blueprint. The frontend receives the API hostname automatically from the API service.
 
 ## Pointers
 

@@ -1,11 +1,22 @@
-import { createRoot } from 'react-dom/client';
+import { createRoot } from "react-dom/client";
 
-import App from './App';
-import { ErrorBoundary } from '@/components/error-boundary';
+import { setBaseUrl } from "@workspace/api-client-react";
+import App from "./App";
+import { ErrorBoundary } from "@/components/error-boundary";
 
-import './index.css';
+import "./index.css";
 
-createRoot(document.getElementById('root')!, {
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+
+if (configuredApiBaseUrl) {
+  setBaseUrl(
+    /^https?:\/\//i.test(configuredApiBaseUrl)
+      ? configuredApiBaseUrl
+      : `https://${configuredApiBaseUrl}`,
+  );
+}
+
+createRoot(document.getElementById("root")!, {
   // Keeps caught errors off reportError(), which would raise the dev overlay.
   onCaughtError: (error, errorInfo) => {
     console.error(error, errorInfo.componentStack);
