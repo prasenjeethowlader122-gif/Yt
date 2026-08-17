@@ -112,11 +112,26 @@ function safeFilename(value: string): string {
 
 function getYouTubeVideoId(rawUrl: string): string | null {
   const parsed = new URL(rawUrl);
-  if (parsed.hostname.toLowerCase().endsWith("youtu.be")) {
+  const hostname = parsed.hostname.toLowerCase();
+  if (hostname.endsWith("youtu.be")) {
     return parsed.pathname.slice(1).split("/")[0] || null;
   }
-  return parsed.searchParams.get("v");
+
+  const queryId = parsed.searchParams.get("v");
+  if (queryId) return queryId;
+
+  const pathParts = parsed.pathname.split("/").filter(Boolean);
+  if (["shorts", "embed", "live", "v"].includes(pathParts[0] ?? "")) {
+    return pathParts[1] || null;
+  }
+
+  return null;
 }
+
+const YOUTUBE_EXTRACTOR_ARGS = [
+  "youtube:player_client=android,web",
+  "youtube:player_client=web_safari,web",
+];
 
 async function inspectYouTubeWithOEmbed(source: {
   url: string;
@@ -151,13 +166,27 @@ async function inspectYouTubeWithOEmbed(source: {
 export async function inspectSource(rawUrl: string): Promise<VideoMetadata> {
   const source = validateSourceUrl(rawUrl);
   try {
-    const metadataResult = await runYtDlp([
-      "--dump-single-json",
-      "--no-playlist",
-      "--no-warnings",
-      "--skip-download",
-      source.url,
-    ]);
+    let metadataResult: { stdout: string } | null = null;
+    let lastError: unknown = null;
+
+    for (const extractorArgs of source.platform === "youtube" ? YOUTUBE_EXTRACTOR_ARGS : [undefined]) {
+      try {
+        metadataResult = await runYtDlp([
+          "--dump-single-json",
+          "--no-playlist",
+          "--no-warnings",
+          "--skip-download",
+          ...(extractorArgs ? ["--extractor-args", extractorArgs] : []),
+          source.url,
+        ]);
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (!metadataResult) throw lastError ?? new Error("Video metadata was unavailable.");
+
     const metadata = JSON.parse(metadataResult.stdout) as {
       title?: string;
       duration?: number;

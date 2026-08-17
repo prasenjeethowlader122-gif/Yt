@@ -298,7 +298,10 @@ function TimeInput({ label, value, onChange, max, testId }: { label: string; val
           max={max}
           step={0.1}
           value={value.toFixed(1)}
-          onChange={(event) => onChange(Number(event.target.value))}
+          onChange={(event) => {
+            const nextValue = Number(event.target.value);
+            if (Number.isFinite(nextValue)) onChange(nextValue);
+          }}
           className="w-full bg-transparent py-2.5 font-mono text-sm font-medium outline-none"
           data-testid={testId}
           aria-label={label}
@@ -548,11 +551,15 @@ export default function Workspace() {
 
   const resetSource = () => {
     setVideo(null);
+    setStart(0);
+    setEnd(0);
+    setClipTitle('');
     setInspectError(null);
     setClipError(null);
     setClipSuccess(false);
     setFullState('idle');
-    form.reset();
+    setFullError(null);
+    form.reset({ url: '' });
   };
 
   return (

@@ -50,8 +50,13 @@ router.post("/video/clip", async (req, res): Promise<void> => {
     return;
   }
 
-  if (parsed.data.endSeconds <= parsed.data.startSeconds) {
-    sendError(res, 400, "End time must be after start time.", "invalid_range");
+  if (
+    !Number.isFinite(parsed.data.startSeconds) ||
+    !Number.isFinite(parsed.data.endSeconds) ||
+    parsed.data.startSeconds < 0 ||
+    parsed.data.endSeconds <= parsed.data.startSeconds
+  ) {
+    sendError(res, 400, "Choose a valid range with an end time after the start time.", "invalid_range");
     return;
   }
 
