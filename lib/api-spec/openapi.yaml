@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: video
+    description: Video inspection and download operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,101 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /video/inspect:
+    post:
+      operationId: inspectVideo
+      tags: [video]
+      summary: Inspect a YouTube or Facebook video
+      description: Reads permitted public video metadata and prepares it for clipping.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceUrlInput"
+      responses:
+        "200":
+          description: Video metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoInfo"
+        "400":
+          description: Invalid or unsupported URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoError"
+        "502":
+          description: The source could not be read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoError"
+  /video/clip:
+    post:
+      operationId: createVideoClip
+      tags: [video]
+      summary: Create and download a video clip
+      description: Downloads the permitted source and trims it between the requested seconds.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClipInput"
+      responses:
+        "200":
+          description: The generated MP4 clip
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid clip range or URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoError"
+        "502":
+          description: The source could not be downloaded or processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoError"
+  /video/download:
+    get:
+      operationId: downloadVideo
+      tags: [video]
+      summary: Download the complete source video
+      description: Downloads the permitted source video as an MP4 file.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The complete MP4 video
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid or unsupported URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoError"
+        "502":
+          description: The source could not be downloaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoError"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +130,66 @@ components:
           type: string
       required:
         - status
+    SourceUrlInput:
+      type: object
+      properties:
+        url:
+          type: string
+          minLength: 8
+      required:
+        - url
+    ClipInput:
+      type: object
+      properties:
+        url:
+          type: string
+          minLength: 8
+        startSeconds:
+          type: number
+          minimum: 0
+        endSeconds:
+          type: number
+          exclusiveMinimum: 0
+        title:
+          type: ["string", "null"]
+          maxLength: 120
+      required:
+        - url
+        - startSeconds
+        - endSeconds
+    VideoInfo:
+      type: object
+      properties:
+        url:
+          type: string
+        platform:
+          type: string
+          enum: [youtube, facebook]
+        title:
+          type: string
+        durationSeconds:
+          type: number
+        thumbnailUrl:
+          type: ["string", "null"]
+        previewUrl:
+          type: ["string", "null"]
+        filename:
+          type: string
+      required:
+        - url
+        - platform
+        - title
+        - durationSeconds
+        - thumbnailUrl
+        - previewUrl
+        - filename
+    VideoError:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+      required:
+        - error
 

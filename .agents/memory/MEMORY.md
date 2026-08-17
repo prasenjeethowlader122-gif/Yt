@@ -1,0 +1,1 @@
+- [Video URL validation](video-url-validation.md) — OpenAPI URI formats are incompatible with this workspace's generated Zod 3 schemas; validate hosts in server helpers.

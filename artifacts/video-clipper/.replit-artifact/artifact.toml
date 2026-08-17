@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ClipForge"
+description = "A browser-based video utility for turning permitted YouTube and Facebook videos into manually trimmed short clips or downloadable full videos."
+version = "1.0.0"
+id = "artifacts/video-clipper"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22040
+
+[services.development]
+run = "pnpm --filter @workspace/video-clipper run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/video-clipper", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/video-clipper/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22040"
+BASE_PATH = "/"
