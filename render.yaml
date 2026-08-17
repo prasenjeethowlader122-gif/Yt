@@ -2,7 +2,7 @@ services:
   - type: web
     name: clipforge-api
     runtime: docker
-    plan: starter  # Changed from "free"
+    plan: free
     dockerfilePath: ./artifacts/api-server/Dockerfile
     dockerContext: .
     healthCheckPath: /api/healthz
@@ -15,6 +15,7 @@ services:
   - type: web
     name: clipforge-frontend
     runtime: static
+    plan: free
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @workspace/video-clipper build
     staticPublishPath: ./artifacts/video-clipper/dist/public
     envVars:
