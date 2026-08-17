@@ -226,10 +226,23 @@ function EmptyPreview() {
 }
 
 function PreviewCard({ video }: { video: VideoInfo }) {
+  const isYouTubeEmbed =
+    video.platform === 'youtube' &&
+    video.previewUrl?.startsWith('https://www.youtube.com/embed/');
+
   return (
     <div className="relative overflow-hidden rounded-[1.1rem] border border-foreground/10 bg-secondary shadow-[var(--shadow-md)]">
       <div className="relative aspect-video overflow-hidden bg-[#292d49]">
-        {video.previewUrl ? (
+        {isYouTubeEmbed ? (
+          <iframe
+            className="size-full"
+            src={video.previewUrl ?? undefined}
+            title={video.title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            data-testid="youtube-preview"
+          />
+        ) : video.previewUrl ? (
           <video className="size-full object-cover" controls poster={video.thumbnailUrl ?? undefined} src={video.previewUrl} data-testid="video-preview" />
         ) : video.thumbnailUrl ? (
           <img src={video.thumbnailUrl} alt="" className="size-full object-cover opacity-80" data-testid="img-video-thumbnail" />
@@ -238,7 +251,7 @@ function PreviewCard({ video }: { video: VideoInfo }) {
             <Film className="size-11 text-primary/65" strokeWidth={1.25} />
           </div>
         )}
-        {!video.previewUrl && (
+        {!video.previewUrl && !isYouTubeEmbed && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className="flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[4px_4px_0_hsl(var(--foreground)/.6)]">
               <Play className="ml-1 size-5 fill-current" />
@@ -328,6 +341,7 @@ function TrimControls({
   const endPercent = duration ? (end / duration) * 100 : 100;
   const clipLength = Math.max(0, end - start);
   const invalid = end <= start || start < 0 || end > duration;
+  const processingAvailable = duration > 0;
 
   const updateStart = (value: number) => setStart(Math.min(Math.max(0, Number.isFinite(value) ? value : 0), Math.max(0, end - 0.1)));
   const updateEnd = (value: number) => setEnd(Math.max(Math.min(duration, Number.isFinite(value) ? value : duration), Math.min(duration, start + 0.1)));
@@ -383,6 +397,12 @@ function TrimControls({
           <AlertCircle className="size-4" /> End time must be after the start time.
         </div>
       ) : null}
+      {!processingAvailable ? (
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2.5 text-xs leading-5 text-foreground/75" data-testid="status-preview-only">
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-primary" />
+          <span><strong className="font-bold text-foreground">Preview only for this source.</strong> YouTube requires sign-in before this server can read the video duration and create a downloadable file.</span>
+        </div>
+      ) : null}
       {fullError ? (
         <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-destructive/10 px-3 py-2.5 text-xs font-semibold text-destructive" data-testid="status-download-error">
           <span className="flex items-center gap-2"><AlertCircle className="size-4" /> {fullError}</span>
@@ -393,7 +413,7 @@ function TrimControls({
       <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto]">
         <button
           type="button"
-          disabled={clipPending || invalid}
+          disabled={clipPending || invalid || !processingAvailable}
           onClick={onClip}
           className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-extrabold text-primary-foreground shadow-[3px_3px_0_hsl(var(--foreground))] transition-all hover:-translate-y-0.5 hover:shadow-[4px_5px_0_hsl(var(--foreground))] active:translate-y-0 disabled:pointer-events-none disabled:opacity-55"
           data-testid="button-create-clip"
@@ -403,7 +423,7 @@ function TrimControls({
         </button>
         <button
           type="button"
-          disabled={fullState === 'loading'}
+          disabled={fullState === 'loading' || !processingAvailable}
           onClick={onFullDownload}
           className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-foreground/20 bg-background px-4 text-sm font-bold text-foreground transition-colors hover:border-foreground/45 hover:bg-muted disabled:pointer-events-none disabled:opacity-55"
           data-testid="button-download-full"

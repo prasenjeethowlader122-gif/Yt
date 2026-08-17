@@ -6,6 +6,12 @@ import { promisify } from "node:util";
 
 const execFile = promisify(execFileCallback);
 
+const packagedYtDlpPath = join(process.cwd(), "../../.pythonlibs/bin/yt-dlp");
+const packagedYtDlpSitePackages = join(
+  process.cwd(),
+  "../../.pythonlibs/lib/python3.13/site-packages",
+);
+
 export type VideoPlatform = "youtube" | "facebook";
 
 export type VideoMetadata = {
@@ -16,6 +22,11 @@ export type VideoMetadata = {
   thumbnailUrl: string | null;
   previewUrl: string | null;
   filename: string;
+};
+
+type OEmbedResponse = {
+  title?: string;
+  thumbnail_url?: string;
 };
 
 const YOUTUBE_HOSTS = new Set([
@@ -73,10 +84,20 @@ export function validateSourceUrl(rawUrl: string): {
 }
 
 async function runYtDlp(args: string[], maxBuffer = 4 * 1024 * 1024) {
-  return execFile("yt-dlp", args, {
+  return execFile(
+    packagedYtDlpPath,
+    args,
+    {
     maxBuffer,
     timeout: 10 * 60 * 1000,
-  });
+      env: {
+        ...process.env,
+        PYTHONPATH: [packagedYtDlpSitePackages, process.env.PYTHONPATH]
+          .filter(Boolean)
+          .join(":"),
+      },
+    },
+  );
 }
 
 function safeFilename(value: string): string {
@@ -89,50 +110,101 @@ function safeFilename(value: string): string {
   return normalized || "clipforge-video";
 }
 
-export async function inspectSource(rawUrl: string): Promise<VideoMetadata> {
-  const source = validateSourceUrl(rawUrl);
-  const metadataResult = await runYtDlp([
-    "--dump-single-json",
-    "--no-playlist",
-    "--no-warnings",
-    "--skip-download",
-    source.url,
-  ]);
-  const metadata = JSON.parse(metadataResult.stdout) as {
-    title?: string;
-    duration?: number;
-    thumbnail?: string;
-    webpage_url?: string;
-  };
+function getYouTubeVideoId(rawUrl: string): string | null {
+  const parsed = new URL(rawUrl);
+  if (parsed.hostname.toLowerCase().endsWith("youtu.be")) {
+    return parsed.pathname.slice(1).split("/")[0] || null;
+  }
+  return parsed.searchParams.get("v");
+}
 
-  let previewUrl: string | null = null;
-  try {
-    const previewResult = await runYtDlp([
-      "--get-url",
-      "--no-playlist",
-      "--no-warnings",
-      "-f",
-      "best[ext=mp4]/best",
-      source.url,
-    ]);
-    previewUrl = previewResult.stdout.trim().split(/\r?\n/).at(-1) || null;
-  } catch {
-    previewUrl = null;
+async function inspectYouTubeWithOEmbed(source: {
+  url: string;
+  platform: VideoPlatform;
+}): Promise<VideoMetadata> {
+  const videoId = getYouTubeVideoId(source.url);
+  if (!videoId) {
+    throw new Error("This YouTube link does not contain a video ID.");
   }
 
-  const title = safeFilename(metadata.title ?? "Untitled video");
+  const response = await fetch(
+    `https://www.youtube.com/oembed?url=${encodeURIComponent(source.url)}&format=json`,
+  );
+  if (!response.ok) {
+    throw new Error("YouTube did not return metadata for this video.");
+  }
+
+  const metadata = (await response.json()) as OEmbedResponse;
+  const title = metadata.title ?? "YouTube video";
   return {
-    url: metadata.webpage_url ?? source.url,
+    url: source.url,
     platform: source.platform,
-    title: metadata.title ?? "Untitled video",
-    durationSeconds:
-      typeof metadata.duration === "number" && Number.isFinite(metadata.duration)
-        ? Math.max(0, metadata.duration)
-        : 0,
-    thumbnailUrl: metadata.thumbnail ?? null,
-    previewUrl,
-    filename: `${title}.mp4`,
+    title,
+    durationSeconds: 0,
+    thumbnailUrl:
+      metadata.thumbnail_url ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    previewUrl: `https://www.youtube.com/embed/${videoId}?rel=0`,
+    filename: `${safeFilename(title)}.mp4`,
   };
+}
+
+export async function inspectSource(rawUrl: string): Promise<VideoMetadata> {
+  const source = validateSourceUrl(rawUrl);
+  try {
+    const metadataResult = await runYtDlp([
+      "--dump-single-json",
+      "--no-playlist",
+      "--no-warnings",
+      "--skip-download",
+      source.url,
+    ]);
+    const metadata = JSON.parse(metadataResult.stdout) as {
+      title?: string;
+      duration?: number;
+      thumbnail?: string;
+      webpage_url?: string;
+    };
+
+    let previewUrl: string | null = null;
+    try {
+      const previewResult = await runYtDlp([
+        "--get-url",
+        "--no-playlist",
+        "--no-warnings",
+        "-f",
+        "best[ext=mp4]/best",
+        source.url,
+      ]);
+      previewUrl = previewResult.stdout.trim().split(/\r?\n/).at(-1) || null;
+    } catch {
+      previewUrl = null;
+    }
+
+    const title = safeFilename(metadata.title ?? "Untitled video");
+    return {
+      url: metadata.webpage_url ?? source.url,
+      platform: source.platform,
+      title: metadata.title ?? "Untitled video",
+      durationSeconds:
+        typeof metadata.duration === "number" && Number.isFinite(metadata.duration)
+          ? Math.max(0, metadata.duration)
+          : 0,
+      thumbnailUrl: metadata.thumbnail ?? null,
+      previewUrl,
+      filename: `${title}.mp4`,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : "";
+    if (
+      source.platform === "youtube" &&
+      (message.includes("sign in") ||
+        message.includes("not a bot") ||
+        message.includes("login_required"))
+    ) {
+      return inspectYouTubeWithOEmbed(source);
+    }
+    throw error;
+  }
 }
 
 async function downloadSource(url: string, workDir: string): Promise<string> {
