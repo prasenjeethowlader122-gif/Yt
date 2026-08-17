@@ -1,7 +1,7 @@
 {
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm --filter @workspace/video-clipper run build",
-  "outputDirectory": "dist/public",
+  "outputDirectory": "artifacts/video-clipper/dist/public",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "framework": null
 }
