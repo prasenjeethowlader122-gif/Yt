@@ -14,17 +14,12 @@ services:
 
   - type: web
     name: clipforge-frontend
-    runtime: static
+    runtime: node
     plan: free
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @workspace/video-clipper build
-    staticPublishPath: ./artifacts/video-clipper/dist/public
+    startCommand: pnpm --filter @workspace/video-clipper serve
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: PORT
         value: "10000"
-      - key: BASE_PATH
-        value: /
-      - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: clipforge-api
-          property: host
